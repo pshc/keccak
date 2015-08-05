@@ -11,7 +11,7 @@ impl Digest {
         Digest([0; OUTPUT_LEN])
     }
 
-    /// Performs SHA-3 on the input stream; returns a new Digest.
+    /// Performs Keccak-512 on the input stream; returns a new Digest.
     ///
     /// For repeated usage, it may be faster to call `keccak_512` directly.
     pub fn with_512<R: io::Read>(input: &mut R) -> io::Result<Self> {
