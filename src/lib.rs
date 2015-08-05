@@ -181,7 +181,7 @@ impl Copy for Digest {}
 impl fmt::LowerHex for Digest {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for byte in self.0.iter() {
-            try!(f.write_fmt(format_args!("{:02x}", byte)));
+            try!(write!(f, "{:02x}", byte));
         }
         Ok(())
     }
