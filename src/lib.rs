@@ -184,6 +184,7 @@ impl fmt::Display for Digest {
 
 impl fmt::Debug for Digest {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "0x")?;
         fmt::LowerHex::fmt(self, f)
     }
 }
@@ -202,6 +203,7 @@ mod test {
     fn check_512(input: &str, output: &str) {
         let digest = Digest::with_512(&mut input.as_bytes()).unwrap();
         assert_eq!(format!("{}", digest), output);
+        assert_eq!(format!("{:?}", digest), format!("0x{}", output));
     }
 
     #[test]
