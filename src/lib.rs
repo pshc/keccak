@@ -3,6 +3,7 @@ use std::fmt;
 use std::io;
 use std::io::BufRead;
 
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 /// Stores one Keccak-512 output result.
 pub struct Digest(pub [u8; OUTPUT_LEN]);
 
@@ -16,7 +17,7 @@ impl Digest {
     /// For repeated usage, it may be faster to call `keccak_512` directly.
     pub fn with_512<R: io::Read>(input: &mut R) -> io::Result<Self> {
         let mut digest = Self::zeroed();
-        try!(digest.keccak_512(input));
+        digest.keccak_512(input)?;
         Ok(digest)
     }
 
@@ -27,7 +28,7 @@ impl Digest {
 
         loop {
             let last_block = {
-                let buf = try!(input.fill_buf());
+                let buf = input.fill_buf()?;
                 let consumed = buf.len();
                 debug_assert!(consumed <= R_BYTES);
 
@@ -114,11 +115,8 @@ fn round(a: &mut State, round: usize) {
         }
         for i in 0..5 {
             let d = c[(i+4) % 5] ^ c[(i+1) % 5].rotate_left(1);
-            // step_by is unstable ;_;
-            let mut j = 0;
-            while j < 25 {
+            for j in (0..25).step_by(5) {
                 a[i+j] ^= d;
-                j += 5;
             }
         }
     }
@@ -169,19 +167,10 @@ fn xor_lanes(a: &mut State, buf: &[u8]) {
     }
 }
 
-
-// Digest can't be derived due to its big fixed-sized [u8].
-// Here are some manual impls.
-
-impl Clone for Digest {
-    fn clone(&self) -> Self { *self }
-}
-impl Copy for Digest {}
-
 impl fmt::LowerHex for Digest {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for byte in self.0.iter() {
-            try!(write!(f, "{:02x}", byte));
+            write!(f, "{:02x}", byte)?;
         }
         Ok(())
     }
@@ -204,20 +193,6 @@ impl Default for Digest {
         Self::zeroed()
     }
 }
-
-impl PartialEq for Digest {
-    fn eq(&self, other: &Self) -> bool {
-        // yay, timing attack
-        for (a, b) in self.0.iter().zip(other.0.iter()) {
-            if a != b {
-                return false;
-            }
-        }
-        true
-    }
-}
-
-impl Eq for Digest {}
 
 
 #[cfg(test)]
