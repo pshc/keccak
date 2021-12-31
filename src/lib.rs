@@ -1,28 +1,23 @@
 use std::default::Default;
 use std::fmt;
-use std::io;
-use std::io::BufRead;
+use std::io::{self, BufRead};
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-/// Stores one Keccak-512 output result.
+#[derive(Clone, Copy, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
+/// Stores one Keccak-256 output result.
 pub struct Digest(pub [u8; OUTPUT_LEN]);
 
 impl Digest {
-    pub fn zeroed() -> Self {
-        Digest([0; OUTPUT_LEN])
-    }
-
-    /// Performs Keccak-512 on the input stream; returns a new Digest.
+    /// Performs Keccak-256 on the input stream; returns a new Digest.
     ///
-    /// For repeated usage, it may be faster to call `keccak_512` directly.
-    pub fn with_512<R: io::Read>(input: &mut R) -> io::Result<Self> {
-        let mut digest = Self::zeroed();
-        digest.keccak_512(input)?;
+    /// For repeated usage, it may be faster to call `keccak_256` directly.
+    pub fn with_256<R: io::Read>(input: &mut R) -> io::Result<Self> {
+        let mut digest = Self::default();
+        digest.keccak_256(input)?;
         Ok(digest)
     }
 
     /// Consumes the input byte stream, overwriting `self`.
-    pub fn keccak_512<R: io::Read>(&mut self, input: &mut R) -> io::Result<()> {
+    pub fn keccak_256<R: io::Read>(&mut self, input: &mut R) -> io::Result<()> {
         let ref mut state = [0; LANES];
         let mut input = io::BufReader::with_capacity(R_BYTES, input);
 
@@ -76,7 +71,7 @@ type State = [Lane; LANES];
 
 const LANES: usize = 25;
 const ROUNDS: usize = 24;
-const OUTPUT_LEN: usize = 64;
+const OUTPUT_LEN: usize = 32;
 const R_BYTES: usize = (LANES * 8) - (2 * OUTPUT_LEN);
 
 static ROUND_CONSTANTS: [Lane; ROUNDS] = [
@@ -189,47 +184,45 @@ impl fmt::Debug for Digest {
     }
 }
 
-impl Default for Digest {
-    fn default() -> Self {
-        Self::zeroed()
-    }
-}
-
-
 #[cfg(test)]
 mod test {
     use super::{R_BYTES, Digest};
 
-    fn check_512(input: &str, output: &str) {
-        let digest = Digest::with_512(&mut input.as_bytes()).unwrap();
+    fn check_256(input: &str, output: &str) {
+        let digest = Digest::with_256(&mut input.as_bytes()).unwrap();
         assert_eq!(format!("{}", digest), output);
         assert_eq!(format!("{:?}", digest), format!("0x{}", output));
     }
 
     #[test]
-    fn known_512_digests() {
-        check_512("", "0eab42de4c3ceb9235fc91acffe746b29c29a8c366b7c60e4e67c466f36a4304c00fa9caf9d87976ba469bcbe06713b435f091ef2769fb160cdab33d3670680e");
-        check_512("A", "421a35a60054e5f383b6137e43d44e998f496748cc77258240ccfaa8730b51f40cf47c1bc09c728a8cd4f096731298d51463f15af89543fed478053346260c38");
+    fn known_256_digests() {
+        check_256("", "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470");
+        check_256("A", "03783fac2efed8fbc9ad443e592ee30e61d65f471140c10ca155e937b435b760");
 
-        let block = "012345678901234567890123456789012345678901234567890123456789012345678901";
+        // set up a keccak-256 block's worth of repeating digits
+        let block = (0..R_BYTES)
+            .map(|i| char::from_digit((i % 10) as u32, 10).unwrap())
+            .collect::<String>();
         assert_eq!(block.len(), R_BYTES);
-        check_512(&block[..69], "5308edb15b386c77921367c483b65c7d3fe23c4b423ddb8df4a5b7f0de40b0ca60b3de5dbb8b153252bd1e66cdd10c1009cdd2ceb23b61bfc44f8ca4209aa75a");
-        check_512(&block[..70], "c5eba2e8c8fe3a045d3de364a4581f65ad9e54756b58b957364304d209ff10783e58c88075efa3d92cdfa2c243247d8ff7ea360495632b023fa06cfabbc9d30a");
-        check_512(&block[..71], "3173e7abc754a0b2909410d78986428a9183e996864af02f421d273d9fa1b4e4a5b14e2998b20767712f53a01ff8f6ae2c3e71e51e2c0f24257b03e6da09eb77");
-        check_512(block, "90b1d032c3bf06dcc78a46fe52054bab1250600224bfc6dfbfb40a7877c55e89bb982799a2edf198568a4166f6736678b45e76b12fac813cfdf0a76714e5eae8");
-        check_512(block, "90b1d032c3bf06dcc78a46fe52054bab1250600224bfc6dfbfb40a7877c55e89bb982799a2edf198568a4166f6736678b45e76b12fac813cfdf0a76714e5eae8");
-        check_512(&[block, "2"].concat(), "7ecc23723c40dc1154611e2ba1752a5cb6082f592a10b8e3f3817ea634e40d272f2ecf72a99374860c311b8cb6cdadcc862198ac394c7f49a36687fb99f93501");
-        check_512(&[block, block].concat(), "bad62fb72bc1d1ebc117523791dd49a03a65ffd3805363e902378256d34f1d4a6c6afdad5aeaea3bfc1a92fd10c3d97d8ad6b5df85e5a0cd7eb43770356dfcc2");
-        check_512(&[block, block, block].concat(), "d22e9b6978a012bcb8a6a6e44c919336d8e847994190dbdf839ba10d8fc9c231a33bab45e90b2ceaa60d117331b617309c6f9d07c7bc2aa0a54c1d4622d6388d");
+
+        check_256("0123", "3eb0fa86b29ff88ffdd4458cd1f554dd6ad43237a86e38c862ab6c440a387964");
+        check_256(&block[..133], "8a5065b879e6e40d546d443e21b14c2fbcac03d9c9c6bf56b7840d559ac6412b");
+        check_256(&block[..134], "2a271cee3f8b64a4030387b5ca89be46a1ede06bf8c8875be50f93a8ed3463f5");
+        check_256(&block[..135], "e1c34dc088c34f47a3d746bb2cdd07231130c59a9727360e79f4a264e949cb87");
+        check_256(&block, "01247d7ddfd57394d74920f8ffeefcb196ba43c15801b6888a34a383c2866088");
+        check_256(&block, "01247d7ddfd57394d74920f8ffeefcb196ba43c15801b6888a34a383c2866088");
+        check_256(&[&block, "6"].concat(), "b6086ab48f4c24720d6e4d136b3e73c1a8406a2dc3295c3d1b66e0c85fd791cc");
+        check_256(&format!("{}{}", block, &block[..135]), "6a9af1e56f93ecbbc859e440eded0a3ce5f97981c1e97b87c12748298d6dbbc6");
+        check_256(&format!("{}{}", block, block), "962246ee09dd4e3737ebd1760082da5b7526e78217fc239b9f214ec02263d160");
+        check_256(&format!("{}{}{}", block, block, block), "88087f98947b8679da6c44c3996cde147de2e23ba4cf816e683ca0b697a386ca");
     }
 
     #[test]
     fn basic_traits() {
-        let zero = Digest::zeroed();
+        let zero = Digest::default();
         assert_eq!(zero, zero);
-        assert_eq!(zero, Default::default());
 
-        let basic = Digest::with_512(&mut "".as_bytes()).unwrap();
+        let basic = Digest::with_256(&mut "".as_bytes()).unwrap();
         let cloned = basic.clone();
         let copied = basic;
         assert_eq!(basic, cloned);
@@ -237,7 +230,7 @@ mod test {
         assert!(basic != zero);
         assert!(copied != zero);
 
-        let another = Digest::with_512(&mut "a".as_bytes()).unwrap();
+        let another = Digest::with_256(&mut "a".as_bytes()).unwrap();
         assert!(another != basic);
     }
 }
